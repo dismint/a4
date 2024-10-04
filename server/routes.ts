@@ -2,7 +2,7 @@ import { ObjectId } from "mongodb";
 
 import { Router, getExpressRouter } from "./framework/router";
 
-import { Authing, Friending, Posting, Sessioning } from "./app";
+import { Authing, Friending, Posting, Sessioning, Tagging, Webapping } from "./app";
 import { PostOptions } from "./concepts/posting";
 import { SessionDoc } from "./concepts/sessioning";
 import Responses from "./responses";
@@ -15,6 +15,105 @@ import { z } from "zod";
 class Routes {
   // Synchronize the concepts from `app.ts`.
 
+  // New synchronizations for Midpoint
+
+  @Router.get("/status")
+  async getStatus() {
+    return { msg: "Server is running! " };
+  }
+
+  @Router.put("/webapp")
+  async addWebapp(session: SessionDoc, name: string, description: string, url: string) {
+    const user = Sessioning.getUser(session);
+    return await Webapping.create(user, name, description, url);
+  }
+
+  @Router.get("/webapp/view/all")
+  async viewAllWebapps(session: SessionDoc, sup: string) {
+    console.log(sup);
+    const user = Sessioning.getUser(session);
+    return await Webapping.getByUser(user);
+  }
+
+  @Router.delete("/webapp")
+  async deleteWebapp(session: SessionDoc, _id: string) {
+    // TODO: doesn't use the user name for anything, need to change in final
+    const user = Sessioning.getUser(session);
+    return await Webapping.delete(new ObjectId(_id));
+  }
+
+  @Router.patch("/webapp")
+  async patchWebapp(session: SessionDoc, _id: string, name?: string, description?: string, url?: string) {
+    // TODO: same as above
+    const user = Sessioning.getUser(session);
+    if (name) {
+      await Webapping.setName(new ObjectId(_id), name);
+    }
+    if (description) {
+      await Webapping.setDescription(new ObjectId(_id), description);
+    }
+    if (url) {
+      await Webapping.setUrl(new ObjectId(_id), url);
+    }
+    return { msg: "Webapp updated!" };
+  }
+
+  @Router.post("/tag/add")
+  async addTagsToWebapp(session: SessionDoc, _id: string, tags: string) {
+    // TODO: same as above
+    const user = Sessioning.getUser(session);
+    return await Tagging.addTags(new ObjectId(_id), tags.split(","));
+  }
+
+  @Router.post("/tag/delete")
+  deleteTagsFromWebapp(session: SessionDoc, _id: string, tags: string) {
+    // TODO: same as above
+    const user = Sessioning.getUser(session);
+    return Tagging.deleteTags(new ObjectId(_id), tags.split(","));
+  }
+
+  @Router.get("/tag/view/:_id")
+  async viewTagsForWebapp(session: SessionDoc, _id: string) {
+    // TODO: same as above
+    const user = Sessioning.getUser(session);
+    return Tagging.getTagsForId(new ObjectId(_id));
+  }
+
+  @Router.get("/tag/filter/:tag")
+  async filterWebappsByTag(session: SessionDoc, tag: string) {
+    const user = Sessioning.getUser(session);
+    const webapps = await Webapping.getByUser(user);
+    const filtered = webapps.filter(async (webapp) => {
+      const tags = await Tagging.getTagsForId(webapp._id);
+      return tags.includes(tag);
+    });
+    return filtered;
+  }
+
+  // RESTFUL Drafts for Midpoint
+
+  //@Router.get("/user/toptags")
+  //async userTopTags(username: string) {
+  //  this function will sync and get the top tags for a user
+  //}
+
+  //@Router.get("/user/topwebapps")
+  //async userTopWebapps(session: SessionDoc) {
+  //  this function will sync and get the top webapps for a user
+  //}
+
+  //@Router.get("/user/topwebapps/:tag")
+  //async userTopWebappsByTag(session: SessionDoc, tag: string) {
+  //  this function will sync and get the top webapps for a user by tag
+  //}
+
+  //@Router.get("/posts")
+  //async getPosts() {
+  //  this function will sync and get all posts using the Posting concept
+  //  that is yet to be implemented
+  //}
+
+  // END RESTFUL Drafts for Midpoint
   @Router.get("/session")
   async getSessionUser(session: SessionDoc) {
     const user = Sessioning.getUser(session);

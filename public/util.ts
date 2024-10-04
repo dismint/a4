@@ -80,9 +80,54 @@ const operations: Operation[] = [
     method: "DELETE",
     fields: { id: "input" },
   },
-  //
-  // ...
-  //
+  {
+    name: "Add Webapp",
+    endpoint: "/api/webapp",
+    method: "PUT",
+    fields: { name: "input", description: "input", url: "input" },
+  },
+  {
+    name: "Delete Webapp",
+    endpoint: "/api/webapp",
+    method: "DELETE",
+    fields: { _id: "input" },
+  },
+  {
+    name: "Patch Webapp",
+    endpoint: "/api/webapp",
+    method: "PATCH",
+    fields: { _id: "input", name: "input", description: "input", url: "input" },
+  },
+  {
+    name: "List Webapps",
+    endpoint: "/api/webapp/view/all",
+    method: "GET",
+    fields: {},
+  },
+  {
+    name: "Add Tags to Webapp",
+    endpoint: "/api/tag/add",
+    method: "POST",
+    fields: { _id: "input", tags: "input" },
+  },
+  {
+    name: "Delete Tags from Webapp",
+    endpoint: "/api/tag/delete",
+    method: "POST",
+    fields: { _id: "input", tags: "input" },
+  },
+  {
+    name: "View Tags for Webapp",
+    endpoint: "/api/tag/view/:_id",
+    method: "GET",
+    fields: { _id: "input" },
+  },
+  {
+    name: "View Webapps Filtered by Tag for User",
+    endpoint: "/api/tag/filter/:tag",
+    method: "GET",
+    fields: { tag: "input" },
+  },
 ];
 
 /*
