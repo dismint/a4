@@ -2,9 +2,10 @@ import { ObjectId } from "mongodb";
 
 import { Router, getExpressRouter } from "./framework/router";
 
-import { Authing, Friending, Posting, Sessioning, Tagging, Webapping } from "./app";
+import { Authing, Friending, Posting, Sessioning, Tagging, Webapping, Graphing } from "./app";
 import { PostOptions } from "./concepts/posting";
 import { SessionDoc } from "./concepts/sessioning";
+import { WrongUserError } from "./concepts/errors";
 import Responses from "./responses";
 
 import { z } from "zod";
@@ -15,37 +16,87 @@ import { z } from "zod";
 class Routes {
   // Synchronize the concepts from `app.ts`.
 
-  // New synchronizations for Midpoint
+  // BEGIN RESTFUL API
 
   @Router.get("/status")
   async getStatus() {
     return { msg: "Server is running! " };
   }
 
+  /**
+   * Create New Webapp
+   * @param session: User Session
+   * @param name: Webapp Name
+   * @param description: Webapp Description
+   * @param url: Webapp URL
+   * @returns: Webapp Object
+   **/
   @Router.put("/webapp")
   async addWebapp(session: SessionDoc, name: string, description: string, url: string) {
     const user = Sessioning.getUser(session);
-    return await Webapping.create(user, name, description, url);
+    const webappResult = await Webapping.create(user, name, description, url);
+    await Graphing.addNode(webappResult._id, user);
+    Posting.create(user, `Created webapp ${webappResult._id}`);
+    return webappResult;
   }
 
+  /**
+   * View All Webapps
+   * @param session: User Session
+   * @returns: Array of Webapp Objects
+   **/
   @Router.get("/webapp/view/all")
-  async viewAllWebapps(session: SessionDoc, sup: string) {
-    console.log(sup);
+  async viewAllWebapps(session: SessionDoc) {
     const user = Sessioning.getUser(session);
     return await Webapping.getByUser(user);
   }
 
-  @Router.delete("/webapp")
-  async deleteWebapp(session: SessionDoc, _id: string) {
-    // TODO: doesn't use the user name for anything, need to change in final
+  /**
+   * View One Webapp
+   * @param session: User Session
+   * @param _id: Webapp ID
+   * @returns: Webapp Object
+   **/
+  @Router.get("/webapp/view")
+  async viewWebapp(session: SessionDoc, _id: string) {
     const user = Sessioning.getUser(session);
-    return await Webapping.delete(new ObjectId(_id));
+    return await Webapping.getById(new ObjectId(_id));
   }
 
+  /**
+   * Delete a Webapp
+   * @param session: User Session
+   * @param _id: Webapp ID
+   * @returns: Success Message
+   **/
+  @Router.delete("/webapp")
+  async deleteWebapp(session: SessionDoc, _id: string) {
+    const user = Sessioning.getUser(session);
+    if ((await Webapping.getOwner(new ObjectId(_id))) !== user.toString()) {
+      throw new WrongUserError("You do not own this webapp!");
+    }
+
+    const webappResult = await Webapping.delete(new ObjectId(_id));
+    await Graphing.deleteNode(new ObjectId(_id));
+    Posting.create(user, `Deleted webapp ${_id}`);
+    return webappResult;
+  }
+
+  /**
+   * Update a Webapp
+   * @param session: User Session
+   * @param _id: Webapp ID
+   * @param name: New Webapp Name (optional)
+   * @param description: New Webapp Description (optional)
+   * @param url: New Webapp URL (optional)
+   * @returns: Success Message
+   **/
   @Router.patch("/webapp")
   async patchWebapp(session: SessionDoc, _id: string, name?: string, description?: string, url?: string) {
-    // TODO: same as above
     const user = Sessioning.getUser(session);
+    if ((await Webapping.getOwner(new ObjectId(_id))) !== user.toString()) {
+      throw new WrongUserError("You do not own this webapp!");
+    }
     if (name) {
       await Webapping.setName(new ObjectId(_id), name);
     }
@@ -55,65 +106,124 @@ class Routes {
     if (url) {
       await Webapping.setUrl(new ObjectId(_id), url);
     }
+    Posting.create(user, `Updated webapp ${_id}`);
     return { msg: "Webapp updated!" };
   }
 
+  /**
+   * Add Tags to Webapp
+   * @param session: User Session
+   * @param _id: Webapp ID
+   * @param tags: Comma-separated list of tags
+   * @returns: Success Message
+   **/
   @Router.post("/tag/add")
   async addTagsToWebapp(session: SessionDoc, _id: string, tags: string) {
-    // TODO: same as above
     const user = Sessioning.getUser(session);
-    return await Tagging.addTags(new ObjectId(_id), tags.split(","));
+    if ((await Webapping.getOwner(new ObjectId(_id))) !== user.toString()) {
+      throw new WrongUserError("You do not own this webapp!");
+    }
+    const tagResult = await Tagging.addTags(new ObjectId(_id), tags.split(","));
+    const neighbors = await Webapping.getByUser(user);
+    const matching = await Tagging.getMatchingItems(
+      new ObjectId(_id),
+      neighbors.map((w) => w._id),
+    );
+    await Graphing.updateEdgesForUserNode(
+      user,
+      new ObjectId(_id),
+      matching.map((w) => w.item.toString()),
+    );
+    Posting.create(user, `Added tags ${tags} to webapp ${_id}`);
+    return tagResult;
   }
 
-  @Router.post("/tag/delete")
-  deleteTagsFromWebapp(session: SessionDoc, _id: string, tags: string) {
-    // TODO: same as above
+  /**
+   * Remove Tags from Webapp
+   * @param session: User Session
+   * @param _id: Webapp ID
+   * @param tags: Comma-separated list of tags
+   * @returns: Success Message
+   **/
+  @Router.post("/tag/remove")
+  async deleteTagsFromWebapp(session: SessionDoc, _id: string, tags: string) {
     const user = Sessioning.getUser(session);
-    return Tagging.deleteTags(new ObjectId(_id), tags.split(","));
+    if ((await Webapping.getOwner(new ObjectId(_id))) !== user.toString()) {
+      throw new WrongUserError("You do not own this webapp!");
+    }
+    const tagResult = await Tagging.deleteTags(new ObjectId(_id), tags.split(","));
+    const neighbors = await Webapping.getByUser(user);
+    const matching = await Tagging.getMatchingItems(
+      new ObjectId(_id),
+      neighbors.map((w) => w._id),
+    );
+    await Graphing.updateEdgesForUserNode(
+      user,
+      new ObjectId(_id),
+      matching.map((w) => w.item.toString()),
+    );
+    Posting.create(user, `Removed tags ${tags} from webapp ${_id}`);
+    return tagResult;
   }
 
-  @Router.get("/tag/view/:_id")
+  /**
+   * View Tags for Webapp
+   * @param session: User Session
+   * @param _id: Webapp ID
+   * @returns: Array of Tags
+   **/
+  @Router.get("/tag/view")
   async viewTagsForWebapp(session: SessionDoc, _id: string) {
-    // TODO: same as above
     const user = Sessioning.getUser(session);
     return Tagging.getTagsForId(new ObjectId(_id));
   }
 
-  @Router.get("/tag/filter/:tag")
+  /**
+   * View Webapps Filtered by Tag for User
+   * @param session: User Session
+   * @param tag: Tag to filter by
+   * @returns: Array of Webapp Objects
+   **/
+  @Router.get("/tag/filter")
   async filterWebappsByTag(session: SessionDoc, tag: string) {
     const user = Sessioning.getUser(session);
     const webapps = await Webapping.getByUser(user);
-    const filtered = webapps.filter(async (webapp) => {
-      const tags = await Tagging.getTagsForId(webapp._id);
-      return tags.includes(tag);
-    });
+    const filtered = await Tagging.getItemsWithTag(
+      webapps.map((w) => w._id),
+      tag,
+    );
     return filtered;
   }
 
-  // RESTFUL Drafts for Midpoint
+  /**
+   * Top Tags for User
+   * @param session: User Session
+   * @param limit: Number of tags to return
+   * @returns: Array of Tags
+   **/
+  @Router.get("/user/top/tags")
+  async userTopTags(session: SessionDoc, limit: number) {
+    const user = Sessioning.getUser(session);
+    const webapps = await Webapping.getByUser(user);
+    return await Tagging.topTagsForItems(
+      webapps.map((w) => w._id),
+      limit,
+    );
+  }
 
-  //@Router.get("/user/toptags")
-  //async userTopTags(username: string) {
-  //  this function will sync and get the top tags for a user
-  //}
+  /**
+   * Get Nodes That Belong to User
+   * @param session: User Session
+   * @returns: Array of Graph Nodes
+   **/
+  @Router.get("/graph/nodes")
+  async getGraphNodes(session: SessionDoc) {
+    const user = Sessioning.getUser(session);
+    return await Graphing.getUserNodes(user);
+  }
 
-  //@Router.get("/user/topwebapps")
-  //async userTopWebapps(session: SessionDoc) {
-  //  this function will sync and get the top webapps for a user
-  //}
+  // END RESTFUL API
 
-  //@Router.get("/user/topwebapps/:tag")
-  //async userTopWebappsByTag(session: SessionDoc, tag: string) {
-  //  this function will sync and get the top webapps for a user by tag
-  //}
-
-  //@Router.get("/posts")
-  //async getPosts() {
-  //  this function will sync and get all posts using the Posting concept
-  //  that is yet to be implemented
-  //}
-
-  // END RESTFUL Drafts for Midpoint
   @Router.get("/session")
   async getSessionUser(session: SessionDoc) {
     const user = Sessioning.getUser(session);

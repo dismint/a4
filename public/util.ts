@@ -105,28 +105,46 @@ const operations: Operation[] = [
     fields: {},
   },
   {
+    name: "Get ONE Webapp",
+    endpoint: "/api/webapp/view",
+    method: "GET",
+    fields: { _id: "input" },
+  },
+  {
     name: "Add Tags to Webapp",
     endpoint: "/api/tag/add",
     method: "POST",
     fields: { _id: "input", tags: "input" },
   },
   {
-    name: "Delete Tags from Webapp",
-    endpoint: "/api/tag/delete",
+    name: "Remove Tags from Webapp",
+    endpoint: "/api/tag/remove",
     method: "POST",
     fields: { _id: "input", tags: "input" },
   },
   {
     name: "View Tags for Webapp",
-    endpoint: "/api/tag/view/:_id",
+    endpoint: "/api/tag/view",
     method: "GET",
     fields: { _id: "input" },
   },
   {
     name: "View Webapps Filtered by Tag for User",
-    endpoint: "/api/tag/filter/:tag",
+    endpoint: "/api/tag/filter",
     method: "GET",
     fields: { tag: "input" },
+  },
+  {
+    name: "Top Tags for User",
+    endpoint: "/api/user/top/tags",
+    method: "GET",
+    fields: { limit: "input" },
+  },
+  {
+    name: "Get Graph Nodes for User",
+    endpoint: "/api/graph/nodes",
+    method: "GET",
+    fields: {},
   },
 ];
 

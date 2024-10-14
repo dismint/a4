@@ -49,4 +49,13 @@ export default class WebappingConcept {
   async getByUser(user: ObjectId) {
     return await this.webapps.readMany({ user });
   }
+
+  async getById(user: ObjectId) {
+    return await this.webapps.readOne({ _id: user });
+  }
+
+  async getOwner(_id: ObjectId) {
+    const webapp = await this.webapps.readOne({ _id });
+    return webapp?.user.toString();
+  }
 }

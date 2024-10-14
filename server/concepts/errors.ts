@@ -31,3 +31,17 @@ export class NotAllowedError extends FormattableError {
 export class NotFoundError extends FormattableError {
   public readonly HTTP_CODE = 404;
 }
+
+/**
+ * Corresponds to an action that is taken by a user who does not have the correct permissions.
+ */
+export class WrongUserError extends FormattableError {
+  public readonly HTTP_CODE = 409;
+}
+
+/**
+ * Corresponds to an action on an entity that doesn't exist but the user expects it to.
+ */
+export class DoesNotExistError extends FormattableError {
+  public readonly HTTP_CODE = 410;
+}
